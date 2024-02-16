@@ -6,3 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+parversion = { git = "https://github.com/davidRoussov/parversion.git" }
+tooey = { git = "https://github.com/davidRoussov/tooey.git" }
