@@ -879,7 +879,13 @@ dependencies = [
 name = "partooty"
 version = "0.1.0"
 dependencies = [
+ "atty",
+ "clap",
+ "log",
  "parversion",
+ "reqwest",
+ "simple-logging",
+ "tokio",
  "tooey",
 ]
 
