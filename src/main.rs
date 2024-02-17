@@ -7,6 +7,7 @@ use std::io::{self};
 use atty::Stream;
 use clap::{Arg, App};
 use log::LevelFilter;
+use parversion;
 
 async fn fetch_document(url: &str) -> Result<String, &str> {
     log::trace!("In fetch_document");
@@ -73,6 +74,8 @@ fn main() {
              .help("url"))
         .get_matches();
 
+    let document_type = matches.value_of("type").expect("Did not receive document type");
+
     let rt = Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -84,13 +87,22 @@ fn main() {
                 document = text;
             }
         }
-
-        if document.trim().is_empty() {
-            log::info!("Document not provided, aborting...");
-            panic!("Document not found");
-        }
-
-        println!("{}", document);
-
     });
+
+    if document.trim().is_empty() {
+        log::info!("Document not provided, aborting...");
+        panic!("Document not found");
+    }
+
+    let result = parversion::string_to_json(document, document_type);
+
+    match result {
+        Ok(json) => {
+            println!("{:?}", json);
+        }
+        Err(err) => {
+            log::error!("{:?}", err);
+            panic!("Parversion was unable to process document");
+        }
+    }
 }
