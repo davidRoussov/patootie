@@ -884,6 +884,8 @@ dependencies = [
  "log",
  "parversion",
  "reqwest",
+ "serde",
+ "serde_json",
  "simple-logging",
  "tokio",
  "tooey",
@@ -892,7 +894,7 @@ dependencies = [
 [[package]]
 name = "parversion"
 version = "0.1.0"
-source = "git+https://github.com/davidRoussov/parversion.git#22614692708b8e0d328fbda8ef3d51ab326bb994"
+source = "git+https://github.com/davidRoussov/parversion.git#680a690936fba4a24e0faa9d5c28ded602d0575d"
 dependencies = [
  "atty",
  "clap",
@@ -1501,7 +1503,7 @@ dependencies = [
 [[package]]
 name = "tooey"
 version = "0.1.0"
-source = "git+https://github.com/davidRoussov/tooey.git#052997df34cb929cffd430c9f222527514845d58"
+source = "git+https://github.com/davidRoussov/tooey.git#1b55699eae6b4b90661fe939f92b0d6defdc067a"
 dependencies = [
  "async-recursion",
  "atty",

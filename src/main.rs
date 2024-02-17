@@ -8,6 +8,7 @@ use atty::Stream;
 use clap::{Arg, App};
 use log::LevelFilter;
 use parversion;
+use tooey;
 
 async fn fetch_document(url: &str) -> Result<String, &str> {
     log::trace!("In fetch_document");
@@ -97,8 +98,25 @@ fn main() {
     let result = parversion::string_to_json(document, document_type);
 
     match result {
-        Ok(json) => {
-            println!("{:?}", json);
+        Ok(output) => {
+            println!("{:?}", output);
+
+            let parsers = output.parsers;
+            let data = output.data;
+
+            let json_string = serde_json::to_string(&data).expect("Could not convert data to json string");
+
+            match tooey::json_to_terminal(json_string, document_type) {
+                Ok(session_result) => {
+                    if let Some(session_result) = session_result {
+                        println!("{:?}", session_result);
+                    }
+                }
+                Err(error) => {
+                    log::error!("{:?}", error);
+                    panic!("Tooey was unable to render json");
+                }
+            }
         }
         Err(err) => {
             log::error!("{:?}", err);
