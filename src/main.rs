@@ -1,6 +1,7 @@
 extern crate simple_logging;
 extern crate log;
 
+use rusqlite::{Connection, Result};
 use tokio::runtime::Runtime;
 use std::io::{Read};
 use std::io::{self};
@@ -9,6 +10,24 @@ use clap::{Arg, App};
 use log::LevelFilter;
 use parversion;
 use tooey;
+
+fn establish_connection(path: &str) -> Result<Connection> {
+    let conn = Connection::open(path)?;
+    Ok(conn)
+}
+
+fn init_tables(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS parsers (
+            id INTEGER PRIMARY KEY,
+            url TEXT NOT NULL,
+            parser TEXT NOT NULL
+        )",
+        ()
+    )?;
+
+    Ok(())
+}
 
 async fn fetch_document(url: &str) -> Result<String, &str> {
     log::trace!("In fetch_document");
@@ -94,6 +113,32 @@ fn main() {
         log::info!("Document not provided, aborting...");
         panic!("Document not found");
     }
+
+
+
+
+
+    let db_path = "partooty.db";
+    if let Ok(conn) = establish_connection(db_path) {
+        log::info!("Established connection to database");
+
+        if init_tables(&conn).is_ok() {
+            log::info!("Initialised tables");
+
+            if let Some(url) = matches.value_of("url") {
+                if conn.execute(
+                    "INSERT INTO parsers (url, parser) VALUES (?1, ?2)",
+                    &[&url, "test"],
+                ).is_ok() {
+                    log::info!("Inserted data into db");
+                }
+            }
+        }
+    }
+
+
+
+
 
     let result = parversion::string_to_json(document, document_type);
 
