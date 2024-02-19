@@ -1,7 +1,7 @@
 extern crate simple_logging;
 extern crate log;
 
-use rusqlite::{Connection, Result};
+use rusqlite::{Connection};
 use tokio::runtime::Runtime;
 use std::io::{Read};
 use std::io::{self};
@@ -11,12 +11,32 @@ use log::LevelFilter;
 use parversion;
 use tooey;
 
-fn establish_connection(path: &str) -> Result<Connection> {
+fn setup_database() -> Result<Connection, &'static str> {
+    log::trace!("In setup_database");
+
+    let db_path = "partooty.db";
+    if let Ok(conn) = establish_connection(db_path) {
+        log::info!("Established connection to database");
+
+        if init_tables(&conn).is_ok() {
+            log::info!("Initialised tables");
+            
+            Ok(conn)
+        } else {
+            Err("Unable to init tables")
+        }
+    } else {
+        Err("Unable to establish connection to database")
+    }
+
+}
+
+fn establish_connection(path: &str) -> rusqlite::Result<Connection> {
     let conn = Connection::open(path)?;
     Ok(conn)
 }
 
-fn init_tables(conn: &Connection) -> Result<()> {
+fn init_tables(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS parsers (
             id INTEGER PRIMARY KEY,
@@ -116,28 +136,21 @@ fn main() {
 
 
 
+    let connection = setup_database().expect("Failed to setup database");
 
-
-    let db_path = "partooty.db";
-    if let Ok(conn) = establish_connection(db_path) {
-        log::info!("Established connection to database");
-
-        if init_tables(&conn).is_ok() {
-            log::info!("Initialised tables");
-
-            if let Some(url) = matches.value_of("url") {
-                if conn.execute(
-                    "INSERT INTO parsers (url, parser) VALUES (?1, ?2)",
-                    &[&url, "test"],
-                ).is_ok() {
-                    log::info!("Inserted data into db");
-                }
-            }
+    if let Some(url) = matches.value_of("url") {
+        if connection.execute(
+            "INSERT INTO parsers (url, parser) VALUES (?1, ?2)",
+            &[&url, "test"],
+        ).is_ok() {
+            log::info!("Inserted data into db");
         }
     }
 
 
 
+
+    panic!("test");
 
 
     let result = parversion::string_to_json(document, document_type);
