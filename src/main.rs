@@ -15,7 +15,7 @@ use tooey;
 fn get_database_parsers(connection: &Connection, url: Option<&str>) -> Option<Vec<parversion::Parser>> {
     log::trace!("In get_database_parsers");
 
-    if None(url) {
+    if url.is_none() {
         return None;
     }
 
@@ -27,10 +27,15 @@ fn get_database_parsers(connection: &Connection, url: Option<&str>) -> Option<Ve
         while let Ok(Some(row)) = rows.next() {
             let parsers_string: String = row.get(0).expect("Could not get parsers from row");
 
-            let value: serde_json::Value = serde_json::from_str(parsers_string).expect("Failed to parse JSON");
-
-            let mut parsers: Vec<parversion::Parser> = Vec::new();
-
+            match serde_json::from_str::<Vec<parversion::Parser>>(&parsers_string) {
+                 Ok(parsed_objects) => {
+                     return Some(parsed_objects);
+                 }
+                 Err(e) => {
+                     log::error!("Failed to deserialize parsers: {}", e);
+                     return None;
+                 }
+             }
         }
     }
 
@@ -140,6 +145,7 @@ fn main() {
              .help("url"))
         .get_matches();
 
+    let url = matches.value_of("url");
     let document_type = matches.value_of("type").expect("Did not receive document type");
 
     let rt = Runtime::new().unwrap();
@@ -163,27 +169,32 @@ fn main() {
     let connection = setup_database().expect("Failed to setup database");
 
     log::info!("Searching for existing parsers in database before generating new one...");
-    let existing_parsers: Option<Vec<Parser>> = get_database_parsers(&connection, matches.value_of("url"));
+    let existing_parsers: Option<Vec<parversion::Parser>> = get_database_parsers(&connection, url);
+    log::info!("{}", if existing_parsers.is_some() { "Found parsers in database" } else { "Did not find any parsers in database" });
 
-    let mut output: Option<parversion::Output> = None;
+    let output: Option<parversion::Output>;
 
-    if let Some(existing_parsers) = existing_parsers {
-        output = parversion::get_output(document, document_type, existing_parsers).expect("Unable to parse document with existing parsers");
+    if let Some(ref existing_parsers) = existing_parsers {
+        log::info!("Generating output using database parsers...");
+        output = Some(parversion::get_output(document, document_type, &existing_parsers).expect("Unable to parse document with existing parsers"));
     } else {
-        output = parversion::string_to_json(document, document_type).expect("Unable to generate new parser");
+        log::info!("Generating new parsers using parversion...");
+        output = Some(parversion::string_to_json(document, document_type).expect("Unable to generate new parser"));
     }
 
     println!("{:?}", output);
 
-    let parsers = output.parsers;
-    let parsers_json_string = serde_json::to_string(&parsers).expect("Could not convert parsers to json string");
+    let output = output.unwrap();
+    let parsers = serde_json::to_string(&output.parsers).expect("Could not convert parsers to json string");
 
-    if let Some(url) = matches.value_of("url") && None(existing_parsers) {
-        if connection.execute(
-            "INSERT INTO parsers (url, parser) VALUES (?1, ?2)",
-            &[&url, &parsers_json_string.as_str()],
-        ).is_ok() {
-            log::info!("Inserted parsers into db");
+    if let Some(url) = url {
+        if existing_parsers.is_none() {
+            if connection.execute(
+                "INSERT INTO parsers (url, parser) VALUES (?1, ?2)",
+                &[&url, &parsers.as_str()],
+            ).is_ok() {
+                log::info!("Inserted parsers into db");
+            }
         }
     }
 
