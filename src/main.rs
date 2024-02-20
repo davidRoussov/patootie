@@ -1,6 +1,7 @@
 extern crate simple_logging;
 extern crate log;
 
+use serde_json;
 use rusqlite::{Connection};
 use tokio::runtime::Runtime;
 use std::io::{Read};
@@ -10,6 +11,31 @@ use clap::{Arg, App};
 use log::LevelFilter;
 use parversion;
 use tooey;
+
+fn get_database_parsers(connection: &Connection, url: Option<&str>) -> Option<Vec<parversion::Parser>> {
+    log::trace!("In get_database_parsers");
+
+    if None(url) {
+        return None;
+    }
+
+    let statement = connection.prepare("SELECT parser from parsers WHERE url = ?1");
+    let mut result = statement.expect("Unable to prepare statement");
+    let rows = result.query(&[&url]);
+
+    if let Ok(mut rows) = rows {
+        while let Ok(Some(row)) = rows.next() {
+            let parsers_string: String = row.get(0).expect("Could not get parsers from row");
+
+            let value: serde_json::Value = serde_json::from_str(parsers_string).expect("Failed to parse JSON");
+
+            let mut parsers: Vec<parversion::Parser> = Vec::new();
+
+        }
+    }
+
+    None
+}
 
 fn setup_database() -> Result<Connection, &'static str> {
     log::trace!("In setup_database");
@@ -134,51 +160,45 @@ fn main() {
         panic!("Document not found");
     }
 
-
-
     let connection = setup_database().expect("Failed to setup database");
 
-    if let Some(url) = matches.value_of("url") {
+    log::info!("Searching for existing parsers in database before generating new one...");
+    let existing_parsers: Option<Vec<Parser>> = get_database_parsers(&connection, matches.value_of("url"));
+
+    let mut output: Option<parversion::Output> = None;
+
+    if let Some(existing_parsers) = existing_parsers {
+        output = parversion::get_output(document, document_type, existing_parsers).expect("Unable to parse document with existing parsers");
+    } else {
+        output = parversion::string_to_json(document, document_type).expect("Unable to generate new parser");
+    }
+
+    println!("{:?}", output);
+
+    let parsers = output.parsers;
+    let parsers_json_string = serde_json::to_string(&parsers).expect("Could not convert parsers to json string");
+
+    if let Some(url) = matches.value_of("url") && None(existing_parsers) {
         if connection.execute(
             "INSERT INTO parsers (url, parser) VALUES (?1, ?2)",
-            &[&url, "test"],
+            &[&url, &parsers_json_string.as_str()],
         ).is_ok() {
-            log::info!("Inserted data into db");
+            log::info!("Inserted parsers into db");
         }
     }
 
+    let data = output.data;
+    let data_json_string = serde_json::to_string(&data).expect("Could not convert data to json string");
 
-
-
-    panic!("test");
-
-
-    let result = parversion::string_to_json(document, document_type);
-
-    match result {
-        Ok(output) => {
-            println!("{:?}", output);
-
-            let parsers = output.parsers;
-            let data = output.data;
-
-            let json_string = serde_json::to_string(&data).expect("Could not convert data to json string");
-
-            match tooey::json_to_terminal(json_string, document_type) {
-                Ok(session_result) => {
-                    if let Some(session_result) = session_result {
-                        println!("{:?}", session_result);
-                    }
-                }
-                Err(error) => {
-                    log::error!("{:?}", error);
-                    panic!("Tooey was unable to render json");
-                }
+    match tooey::json_to_terminal(data_json_string, document_type) {
+        Ok(session_result) => {
+            if let Some(session_result) = session_result {
+                println!("{:?}", session_result);
             }
         }
-        Err(err) => {
-            log::error!("{:?}", err);
-            panic!("Parversion was unable to process document");
+        Err(error) => {
+            log::error!("{:?}", error);
+            panic!("Tooey was unable to render json");
         }
     }
 }
