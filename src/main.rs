@@ -135,6 +135,12 @@ fn main() {
              .long("type")
              .value_name("TYPE")
              .required(true))
+        .arg(Arg::with_name("regenerate")
+            .short('r')
+            .long("regenerate")
+            .help("Regenerate parser")
+            .takes_value(false)
+            .required(false))
         .arg(Arg::with_name("file")
              .short('f')
              .long("file")
@@ -145,8 +151,14 @@ fn main() {
              .help("url"))
         .get_matches();
 
+    let regenerate = matches.is_present("regenerate");
+    log::debug!("regenerate: {}", regenerate);
+
     let url = matches.value_of("url");
+    log::debug!("url: {:?}", url);
+
     let document_type = matches.value_of("type").expect("Did not receive document type");
+    log::debug!("document_type: {}", document_type);
 
     let rt = Runtime::new().unwrap();
 
@@ -175,20 +187,27 @@ fn main() {
     let output: Option<parversion::Output>;
 
     if let Some(ref existing_parsers) = existing_parsers {
-        log::info!("Generating output using database parsers...");
-        output = Some(parversion::get_output(document, document_type, &existing_parsers).expect("Unable to parse document with existing parsers"));
+        if regenerate {
+            log::info!("Regenerating new parsers using parversion...");
+            output = Some(parversion::string_to_json(document, document_type).expect("Unable to generate new parser"));
+        } else {
+            log::info!("Generating output using database parsers...");
+            output = Some(parversion::get_output(document, document_type, &existing_parsers).expect("Unable to parse document with existing parsers"));
+        }
     } else {
         log::info!("Generating new parsers using parversion...");
         output = Some(parversion::string_to_json(document, document_type).expect("Unable to generate new parser"));
     }
 
-    println!("{:?}", output);
-
     let output = output.unwrap();
     let parsers = serde_json::to_string(&output.parsers).expect("Could not convert parsers to json string");
 
     if let Some(url) = url {
-        if existing_parsers.is_none() {
+        log::trace!("Url exists");
+
+        if existing_parsers.is_none() || regenerate {
+            log::info!("We will save parser to database");
+            
             if connection.execute(
                 "INSERT INTO parsers (url, parser) VALUES (?1, ?2)",
                 &[&url, &parsers.as_str()],
