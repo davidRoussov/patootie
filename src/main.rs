@@ -12,34 +12,56 @@ use log::LevelFilter;
 use parversion;
 use tooey;
 
-fn get_database_parsers(connection: &Connection, url: Option<&str>) -> Option<Vec<parversion::Parser>> {
-    log::trace!("In get_database_parsers");
+fn get_current_order(connection: &Connection, url: &str) -> Option<u16> {
+    log::trace!("In get_current_order");
 
-    if url.is_none() {
-        return None;
-    }
-
-    let statement = connection.prepare("SELECT parser from parsers WHERE url = ?1");
+    let statement = connection.prepare("SELECT MAX(order) FROM parsers WHERE url = ?1");
     let mut result = statement.expect("Unable to prepare statement");
     let rows = result.query(&[&url]);
 
     if let Ok(mut rows) = rows {
         while let Ok(Some(row)) = rows.next() {
-            let parsers_string: String = row.get(0).expect("Could not get parsers from row");
+            let max_index = row.get(0);
 
-            match serde_json::from_str::<Vec<parversion::Parser>>(&parsers_string) {
-                 Ok(parsed_objects) => {
-                     return Some(parsed_objects);
-                 }
-                 Err(e) => {
-                     log::error!("Failed to deserialize parsers: {}", e);
-                     return None;
-                 }
-             }
+            if let Ok(max_index) = max_index {
+                return Some(max_index);
+            }
         }
     }
 
     None
+}
+
+fn get_database_parsers(connection: &Connection, url: Option<&str>) -> Option<Vec<parversion::Parser>> {
+    log::trace!("In get_database_parsers");
+
+    if let Some(url) = url {
+        let current_order = get_current_order(connection, url).expect("Could not get current order");
+        let current_order: &str = &current_order.to_string();
+        let statement = connection.prepare("SELECT parser from parsers WHERE url = ?1 AND order = ?2");
+        let mut result = statement.expect("Unable to prepare statement");
+        let rows = result.query(&[&url, &current_order]);
+
+        if let Ok(mut rows) = rows {
+            while let Ok(Some(row)) = rows.next() {
+                let parsers_string: String = row.get(0).expect("Could not get parsers from row");
+
+                match serde_json::from_str::<Vec<parversion::Parser>>(&parsers_string) {
+                     Ok(parsed_objects) => {
+                         return Some(parsed_objects);
+                     }
+                     Err(e) => {
+                         log::error!("Failed to deserialize parsers: {}", e);
+                         return None;
+                     }
+                 }
+            }
+        }
+
+        None
+    } else {
+        None
+    }
 }
 
 fn setup_database() -> Result<Connection, &'static str> {
@@ -73,6 +95,7 @@ fn init_tables(conn: &Connection) -> rusqlite::Result<()> {
             id INTEGER PRIMARY KEY,
             url TEXT NOT NULL,
             parser TEXT NOT NULL
+            order INTEGER NOT NULL DEFAULT 1 CHECK (order > 0)
         )",
         ()
     )?;
@@ -207,10 +230,14 @@ fn main() {
 
         if existing_parsers.is_none() || regenerate {
             log::info!("We will save parser to database");
+
+            let next_order = get_current_order(&connection, url).unwrap_or(0) + 1;
+            let next_order: &str = &next_order.to_string();
+            log::debug!("next_order: {}", next_order);
             
             if connection.execute(
-                "INSERT INTO parsers (url, parser) VALUES (?1, ?2)",
-                &[&url, &parsers.as_str()],
+                "INSERT INTO parsers (url, parser, order) VALUES (?1, ?2, ?3)",
+                &[&url, &parsers.as_str(), &next_order],
             ).is_ok() {
                 log::info!("Inserted parsers into db");
             }
