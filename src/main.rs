@@ -12,10 +12,10 @@ use log::LevelFilter;
 use parversion;
 use tooey;
 
-fn get_current_order(connection: &Connection, url: &str) -> Option<u16> {
-    log::trace!("In get_current_order");
+fn get_current_sequence_number(connection: &Connection, url: &str) -> Option<u16> {
+    log::trace!("In get_current_sequence_number");
 
-    let statement = connection.prepare("SELECT MAX(order) FROM parsers WHERE url = ?1");
+    let statement = connection.prepare("SELECT MAX(sequence_number) FROM parsers WHERE url = ?1");
     let mut result = statement.expect("Unable to prepare statement");
     let rows = result.query(&[&url]);
 
@@ -36,11 +36,16 @@ fn get_database_parsers(connection: &Connection, url: Option<&str>) -> Option<Ve
     log::trace!("In get_database_parsers");
 
     if let Some(url) = url {
-        let current_order = get_current_order(connection, url).expect("Could not get current order");
-        let current_order: &str = &current_order.to_string();
-        let statement = connection.prepare("SELECT parser from parsers WHERE url = ?1 AND order = ?2");
+        let current_sequence_number = get_current_sequence_number(connection, url);
+
+        if current_sequence_number.is_none() {
+            return None;
+        }
+
+        let current_sequence_number: &str = &(current_sequence_number.unwrap()).to_string();
+        let statement = connection.prepare("SELECT parser from parsers WHERE url = ?1 AND sequence_number = ?2");
         let mut result = statement.expect("Unable to prepare statement");
-        let rows = result.query(&[&url, &current_order]);
+        let rows = result.query(&[&url, &current_sequence_number]);
 
         if let Ok(mut rows) = rows {
             while let Ok(Some(row)) = rows.next() {
@@ -94,8 +99,8 @@ fn init_tables(conn: &Connection) -> rusqlite::Result<()> {
         "CREATE TABLE IF NOT EXISTS parsers (
             id INTEGER PRIMARY KEY,
             url TEXT NOT NULL,
-            parser TEXT NOT NULL
-            order INTEGER NOT NULL DEFAULT 1 CHECK (order > 0)
+            parser TEXT NOT NULL,
+            sequence_number INTEGER NOT NULL DEFAULT 1 CHECK (sequence_number > 0)
         )",
         ()
     )?;
@@ -231,13 +236,13 @@ fn main() {
         if existing_parsers.is_none() || regenerate {
             log::info!("We will save parser to database");
 
-            let next_order = get_current_order(&connection, url).unwrap_or(0) + 1;
-            let next_order: &str = &next_order.to_string();
-            log::debug!("next_order: {}", next_order);
+            let next_sequence_number = get_current_sequence_number(&connection, url).unwrap_or(0) + 1;
+            let next_sequence_number: &str = &next_sequence_number.to_string();
+            log::debug!("next_sequence_number: {}", next_sequence_number);
             
             if connection.execute(
-                "INSERT INTO parsers (url, parser, order) VALUES (?1, ?2, ?3)",
-                &[&url, &parsers.as_str(), &next_order],
+                "INSERT INTO parsers (url, parser, sequence_number) VALUES (?1, ?2, ?3)",
+                &[&url, &parsers.as_str(), &next_sequence_number],
             ).is_ok() {
                 log::info!("Inserted parsers into db");
             }
