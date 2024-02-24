@@ -169,6 +169,12 @@ fn main() {
             .help("Regenerate parser")
             .takes_value(false)
             .required(false))
+        .arg(Arg::with_name("list")
+            .short('l')
+            .long("list")
+            .help("List parsers")
+            .takes_value(false)
+            .required(false))
         .arg(Arg::with_name("file")
              .short('f')
              .long("file")
@@ -181,6 +187,9 @@ fn main() {
 
     let regenerate = matches.is_present("regenerate");
     log::debug!("regenerate: {}", regenerate);
+
+    let list_parsers = matches.is_present("list");
+    log::debug!("list_parsers: {}", list_parsers);
 
     let url = matches.value_of("url");
     log::debug!("url: {:?}", url);
@@ -212,6 +221,36 @@ fn main() {
     let existing_parsers: Option<Vec<parversion::Parser>> = get_database_parsers(&connection, url);
     log::info!("{}", if existing_parsers.is_some() { "Found parsers in database" } else { "Did not find any parsers in database" });
 
+    //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
+    //
+    //     Listing parsers for a URL
+    //
+    //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
+    
+    if list_parsers {
+        log::debug!("list_parsers is true");
+
+        if let Some(url) = url {
+            if let Some(ref existing_parsers) = existing_parsers {
+                for parser in existing_parsers.iter() {
+                    println!("unimplemented");
+                    return;
+                }
+            } else {
+                println!("No parsers found for URL: {}", url);
+                return;
+            }
+        } else {
+            panic!("Listing parsing for non-URLs is not supported");
+        }
+    }
+
+    //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
+    //
+    //     Obtaining output
+    //
+    //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
+
     let output: Option<parversion::Output>;
 
     if let Some(ref existing_parsers) = existing_parsers {
@@ -226,6 +265,12 @@ fn main() {
         log::info!("Generating new parsers using parversion...");
         output = Some(parversion::string_to_json(document, document_type).expect("Unable to generate new parser"));
     }
+
+    //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
+    //
+    //     Saving parsers to database
+    //
+    //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
 
     let output = output.unwrap();
     let parsers = serde_json::to_string(&output.parsers).expect("Could not convert parsers to json string");
@@ -248,6 +293,12 @@ fn main() {
             }
         }
     }
+
+    //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
+    //
+    //     Starting tooey session
+    //
+    //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
 
     let data = output.data;
     let data_json_string = serde_json::to_string(&data).expect("Could not convert data to json string");
