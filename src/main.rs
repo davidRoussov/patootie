@@ -12,6 +12,14 @@ use log::LevelFilter;
 use parversion;
 use tooey;
 
+#[derive(Clone)]
+struct Parser {
+    id: u16,
+    sequence_number: u16,
+    url: String,
+    parsers: Vec<parversion::Parser>,
+}
+
 fn get_current_sequence_number(connection: &Connection, url: &str) -> Option<u16> {
     log::trace!("In get_current_sequence_number");
 
@@ -32,7 +40,7 @@ fn get_current_sequence_number(connection: &Connection, url: &str) -> Option<u16
     None
 }
 
-fn get_database_parsers(connection: &Connection, url: Option<&str>) -> Option<Vec<parversion::Parser>> {
+fn get_database_parsers(connection: &Connection, url: Option<&str>) -> Option<Vec<Parser>> {
     log::trace!("In get_database_parsers");
 
     if let Some(url) = url {
@@ -42,18 +50,26 @@ fn get_database_parsers(connection: &Connection, url: Option<&str>) -> Option<Ve
             return None;
         }
 
-        let current_sequence_number: &str = &(current_sequence_number.unwrap()).to_string();
-        let statement = connection.prepare("SELECT parser from parsers WHERE url = ?1 AND sequence_number = ?2");
+        let statement = connection.prepare("SELECT id, sequence_number, url, parser from parsers WHERE url = ?1");
         let mut result = statement.expect("Unable to prepare statement");
-        let rows = result.query(&[&url, &current_sequence_number]);
+        let rows = result.query(&[&url]);
+
+        let mut parsers: Vec<Parser> = Vec::new();
 
         if let Ok(mut rows) = rows {
             while let Ok(Some(row)) = rows.next() {
-                let parsers_string: String = row.get(0).expect("Could not get parsers from row");
+                let parsers_string: String = row.get(3).expect("Could not get parsers from row");
 
                 match serde_json::from_str::<Vec<parversion::Parser>>(&parsers_string) {
                      Ok(parsed_objects) => {
-                         return Some(parsed_objects);
+                         let parser = Parser {
+                             id: row.get(0).expect("Could not get id from row"),
+                             sequence_number: row.get(1).expect("Could not get sequence number from row"),
+                             url: row.get(2).expect("Could not get url fro row"),
+                             parsers: parsed_objects,
+                         };
+
+                         parsers.push(parser);
                      }
                      Err(e) => {
                          log::error!("Failed to deserialize parsers: {}", e);
@@ -63,7 +79,7 @@ fn get_database_parsers(connection: &Connection, url: Option<&str>) -> Option<Ve
             }
         }
 
-        None
+        Some(parsers)
     } else {
         None
     }
@@ -143,6 +159,15 @@ fn load_stdin() -> io::Result<String> {
     return Ok(buffer);
 }
 
+fn get_current_parser(parsers: Vec<Parser>) -> Parser {
+    log::trace!("In get_current_parser");
+
+    return parsers.iter()
+        .max_by_key(|item| item.sequence_number)
+        .unwrap()
+        .clone();
+}
+
 fn main() {
     let _ = simple_logging::log_to_file("debug.log", LevelFilter::Trace);
 
@@ -218,7 +243,7 @@ fn main() {
     let connection = setup_database().expect("Failed to setup database");
 
     log::info!("Searching for existing parsers in database before generating new one...");
-    let existing_parsers: Option<Vec<parversion::Parser>> = get_database_parsers(&connection, url);
+    let existing_parsers: Option<Vec<Parser>> = get_database_parsers(&connection, url);
     log::info!("{}", if existing_parsers.is_some() { "Found parsers in database" } else { "Did not find any parsers in database" });
 
     //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
@@ -233,7 +258,10 @@ fn main() {
         if let Some(url) = url {
             if let Some(ref existing_parsers) = existing_parsers {
                 for parser in existing_parsers.iter() {
-                    println!("unimplemented");
+                    let parser_truncated = serde_json::to_string(&parser.parsers).expect("Could not convert parsers to json string");
+                    let parser_truncated = &parser_truncated[..std::cmp::min(parser_truncated.len(), 100)];
+
+                    println!("id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
                     return;
                 }
             } else {
@@ -258,8 +286,10 @@ fn main() {
             log::info!("Regenerating new parsers using parversion...");
             output = Some(parversion::string_to_json(document, document_type).expect("Unable to generate new parser"));
         } else {
+            let current_parser: Parser = get_current_parser(existing_parsers.to_vec());
+
             log::info!("Generating output using database parsers...");
-            output = Some(parversion::get_output(document, document_type, &existing_parsers).expect("Unable to parse document with existing parsers"));
+            output = Some(parversion::get_output(document, document_type, &current_parser.parsers).expect("Unable to parse document with existing parsers"));
         }
     } else {
         log::info!("Generating new parsers using parversion...");
