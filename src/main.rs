@@ -257,17 +257,23 @@ fn main() {
 
         if let Some(url) = url {
             if let Some(ref existing_parsers) = existing_parsers {
+                let current_sequence_number = get_current_sequence_number(&connection, url).unwrap();
+
                 for parser in existing_parsers.iter() {
                     let parser_truncated = serde_json::to_string(&parser.parsers).expect("Could not convert parsers to json string");
                     let parser_truncated = &parser_truncated[..std::cmp::min(parser_truncated.len(), 100)];
 
-                    println!("id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
-                    return;
+                    if parser.sequence_number == current_sequence_number {
+                        println!("*** id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
+                    } else {
+                        println!("id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
+                    }
                 }
             } else {
                 println!("No parsers found for URL: {}", url);
-                return;
             }
+
+            return;
         } else {
             panic!("Listing parsing for non-URLs is not supported");
         }
