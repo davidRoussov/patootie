@@ -190,11 +190,6 @@ fn main() {
     }
 
     let matches = App::new("partooty")
-        .arg(Arg::with_name("type")
-             .short('t')
-             .long("type")
-             .value_name("TYPE")
-             .required(true))
         .arg(Arg::with_name("regenerate")
             .short('r')
             .long("regenerate")
@@ -234,9 +229,6 @@ fn main() {
 
     let url = matches.value_of("url");
     log::debug!("url: {:?}", url);
-
-    let document_type = matches.value_of("type").expect("Did not receive document type");
-    log::debug!("document_type: {}", document_type);
 
     let rt = Runtime::new().unwrap();
 
@@ -326,16 +318,16 @@ fn main() {
     if let Some(ref existing_parsers) = existing_parsers {
         if regenerate {
             log::info!("Regenerating new parsers using parversion...");
-            output = Some(parversion::string_to_json(document, document_type).expect("Unable to generate new parser"));
+            output = Some(parversion::string_to_json(document).expect("Unable to generate new parser"));
         } else {
             let current_parser: Parser = get_current_parser(existing_parsers.to_vec());
 
             log::info!("Generating output using database parsers...");
-            output = Some(parversion::get_output(document, document_type, &current_parser.parsers).expect("Unable to parse document with existing parsers"));
+            output = Some(parversion::get_output(document, &current_parser.parsers).expect("Unable to parse document with existing parsers"));
         }
     } else {
         log::info!("Generating new parsers using parversion...");
-        output = Some(parversion::string_to_json(document, document_type).expect("Unable to generate new parser"));
+        output = Some(parversion::string_to_json(document).expect("Unable to generate new parser"));
     }
 
     //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
@@ -345,6 +337,7 @@ fn main() {
     //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
 
     let output = output.unwrap();
+    println!("output: {:?}", output);
     let parsers = serde_json::to_string(&output.parsers).expect("Could not convert parsers to json string");
 
     if let Some(url) = url {
@@ -372,18 +365,18 @@ fn main() {
     //
     //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
 
-    let data = output.data;
-    let data_json_string = serde_json::to_string(&data).expect("Could not convert data to json string");
+    //let data = output.data;
+    //let data_json_string = serde_json::to_string(&data).expect("Could not convert data to json string");
 
-    match tooey::json_to_terminal(data_json_string, document_type) {
-        Ok(session_result) => {
-            if let Some(session_result) = session_result {
-                println!("{:?}", session_result);
-            }
-        }
-        Err(error) => {
-            log::error!("{:?}", error);
-            panic!("Tooey was unable to render json");
-        }
-    }
+    //match tooey::json_to_terminal(data_json_string) {
+    //    Ok(session_result) => {
+    //        if let Some(session_result) = session_result {
+    //            println!("{:?}", session_result);
+    //        }
+    //    }
+    //    Err(error) => {
+    //        log::error!("{:?}", error);
+    //        panic!("Tooey was unable to render json");
+    //    }
+    //}
 }
