@@ -365,18 +365,18 @@ fn main() {
     //
     //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
 
-    //let data = output.data;
-    //let data_json_string = serde_json::to_string(&data).expect("Could not convert data to json string");
+    let data = &output.data[0];
+    let data_json_string = serde_json::to_string(&data).expect("Could not convert data to json string");
 
-    //match tooey::json_to_terminal(data_json_string) {
-    //    Ok(session_result) => {
-    //        if let Some(session_result) = session_result {
-    //            println!("{:?}", session_result);
-    //        }
-    //    }
-    //    Err(error) => {
-    //        log::error!("{:?}", error);
-    //        panic!("Tooey was unable to render json");
-    //    }
-    //}
+    match tooey::json_to_terminal(data_json_string) {
+        Ok(session_result) => {
+            if let Some(session_result) = session_result {
+                println!("{:?}", session_result);
+            }
+        }
+        Err(error) => {
+            log::error!("{:?}", error);
+            panic!("Tooey was unable to render json");
+        }
+    }
 }
