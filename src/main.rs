@@ -10,6 +10,7 @@ use std::io::{self};
 use atty::Stream;
 use clap::{Arg, App};
 use log::LevelFilter;
+use webbrowser;
 use parversion;
 use tooey;
 
@@ -175,6 +176,14 @@ fn get_current_parser(parsers: Vec<Parser>) -> Parser {
         .clone();
 }
 
+fn handle_fallback(url: Option<&str>) {
+    if let Some(url) = url {
+        let _ = webbrowser::open(url);
+    }
+
+    std::process::exit(0);
+}
+
 fn main() {
     let _ = simple_logging::log_to_file("debug.log", LevelFilter::Trace);
 
@@ -313,22 +322,40 @@ fn main() {
     //
     //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
 
-    let output: Option<parversion::Output>;
-
-    if let Some(ref existing_parsers) = existing_parsers {
+    let output: Option<parversion::Output> = if let Some(ref existing_parsers) = existing_parsers {
         if regenerate {
             log::info!("Regenerating new parsers using parversion...");
-            output = Some(parversion::string_to_json(document).expect("Unable to generate new parser"));
+            let result = parversion::string_to_json(document);
+            match result {
+                Ok(data) => Some(data),
+                Err(parversion::Errors::UnableToCategoriseDocument) => {
+                    log::warn!("Parversion was unable to categorise document");
+                    handle_fallback(url);
+                    None
+                }
+                _ => {
+                    panic!("An error occurred while running parversion");
+                }
+            }
         } else {
             let current_parser: Parser = get_current_parser(existing_parsers.to_vec());
-
             log::info!("Generating output using database parsers...");
-            output = Some(parversion::get_output(document, &current_parser.parsers).expect("Unable to parse document with existing parsers"));
+            Some(parversion::get_output(document, &current_parser.parsers).expect("Unable to parse document with existing parsers"))
         }
     } else {
         log::info!("Generating new parsers using parversion...");
-        output = Some(parversion::string_to_json(document).expect("Unable to generate new parser"));
-    }
+        let result = parversion::string_to_json(document);
+        match result {
+            Ok(data) => Some(data),
+            Err(parversion::Errors::UnableToCategoriseDocument) => {
+                handle_fallback(url);
+                None
+            }
+            _ => {
+                panic!("An error occurred while running parversion");
+            }
+        }
+    };
 
     //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
     //
