@@ -48,11 +48,11 @@ fn get_current_sequence_number(connection: &Connection, url: &str) -> Option<u16
     None
 }
 
-fn get_database_parsers(connection: &Connection, url: Option<&str>) -> Option<Vec<Parser>> {
+fn get_database_parsers(connection: &Connection, url: Option<String>) -> Option<Vec<Parser>> {
     log::trace!("In get_database_parsers");
 
     if let Some(url) = url {
-        let current_sequence_number = get_current_sequence_number(connection, url);
+        let current_sequence_number = get_current_sequence_number(connection, &url);
 
         if current_sequence_number.is_none() {
             return None;
@@ -176,15 +176,15 @@ fn get_current_parser(parsers: Vec<Parser>) -> Parser {
         .clone();
 }
 
-fn handle_fallback(url: Option<&str>) {
+fn handle_fallback(url: Option<String>) {
     if let Some(url) = url {
-        let _ = webbrowser::open(url);
+        let _ = webbrowser::open(&url);
     }
 
     std::process::exit(0);
 }
 
-fn get_output(document: String, url: Option<&str>, parsers: Option<Vec<Parser>>, regenerate: bool) -> Result<parversion::Output, String> {
+fn get_output(document: String, url: Option<String>, parsers: Option<Vec<Parser>>, regenerate: bool) -> Result<parversion::Output, String> {
     if let Some(ref parsers) = parsers {
         if regenerate {
             log::info!("Regenerating new parsers using parversion...");
@@ -193,7 +193,7 @@ fn get_output(document: String, url: Option<&str>, parsers: Option<Vec<Parser>>,
                 Ok(data) => Ok(data),
                 Err(parversion::Errors::UnableToCategoriseDocument) => {
                     log::warn!("Parversion was unable to categorise document");
-                    handle_fallback(url);
+                    handle_fallback(url.clone());
                     Err("Unable to categorise document".to_string())
                 }
                 _ => {
@@ -212,7 +212,7 @@ fn get_output(document: String, url: Option<&str>, parsers: Option<Vec<Parser>>,
             Ok(data) => Ok(data),
             Err(parversion::Errors::UnableToCategoriseDocument) => {
                 log::warn!("Parversion was unable to categorise document");
-                handle_fallback(url);
+                handle_fallback(url.clone());
                 Err("Unable to categorise document".to_string())
             }
             _ => {
@@ -274,150 +274,151 @@ fn main() -> Result<(), String> {
     let pop_parser = matches.is_present("pop");
     log::debug!("pop_parser: {}", pop_parser);
 
-    let url = matches.value_of("url");
+    let mut url = matches.value_of("url").map(|s| s.to_owned());
     log::debug!("url: {:?}", url);
 
     let rt = Runtime::new().unwrap();
-
-    rt.block_on(async {
-        if let Some(url) = matches.value_of("url") {
-            log::info!("A url was has been provided");
-            log::debug!("url: {}", url);
-
-            if let Ok(text) = fetch_document(url).await {
-                document = text;
-            }
-        }
-    });
-
-    if document.trim().is_empty() {
-        log::info!("Document not provided, aborting...");
-        panic!("Document not found");
-    }
-
     let connection = setup_database().expect("Failed to setup database");
 
-    log::info!("Searching for existing parsers in database before generating new one...");
-    let existing_parsers: Option<Vec<Parser>> = get_database_parsers(&connection, url);
-    log::info!("{}", if existing_parsers.is_some() { "Found parsers in database" } else { "Did not find any parsers in database" });
+    loop {
 
-    //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
-    //
-    //     Listing or popping parsers for a URL
-    //
-    //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
-    
-    if list_parsers || pop_parser {
-        log::debug!("list_parsers or pop_parser is true");
+        rt.block_on(async {
+            if let Some(some_url) = url.clone() {
+                log::info!("A url was has been provided");
+                log::debug!("url: {}", some_url);
 
-        if let Some(url) = url {
-            if let Some(ref existing_parsers) = existing_parsers {
+                if let Ok(text) = fetch_document(&some_url).await {
+                    document = text;
+                }
+            }
+        });
 
-                let current_sequence_number = get_current_sequence_number(&connection, url).unwrap();
-                log::debug!("current_sequence_number: {}", current_sequence_number);
+        if document.trim().is_empty() {
+            log::info!("Document not provided, aborting...");
+            panic!("Document not found");
+        }
 
-                if list_parsers {
-                    log::info!("listing parsers");
 
-                    for parser in existing_parsers.iter() {
-                        let parser_truncated = serde_json::to_string(&parser.parsers).expect("Could not convert parsers to json string");
+
+        log::info!("Searching for existing parsers in database before generating new one...");
+        let existing_parsers: Option<Vec<Parser>> = get_database_parsers(&connection, url.clone());
+        log::info!("{}", if existing_parsers.is_some() { "Found parsers in database" } else { "Did not find any parsers in database" });
+
+        //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
+        //
+        //     Listing or popping parsers for a URL
+        //
+        //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
+        
+        if list_parsers || pop_parser {
+            log::debug!("list_parsers or pop_parser is true");
+
+            if let Some(url) = url.clone() {
+                if let Some(ref existing_parsers) = existing_parsers {
+
+                    let current_sequence_number = get_current_sequence_number(&connection, &url).unwrap();
+                    log::debug!("current_sequence_number: {}", current_sequence_number);
+
+                    if list_parsers {
+                        log::info!("listing parsers");
+
+                        for parser in existing_parsers.iter() {
+                            let parser_truncated = serde_json::to_string(&parser.parsers).expect("Could not convert parsers to json string");
+                            let parser_truncated = &parser_truncated[..std::cmp::min(parser_truncated.len(), 100)];
+
+                            if parser.sequence_number == current_sequence_number {
+                                println!("*** id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
+                            } else {
+                                println!("id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
+                            }
+                        }
+
+                    } else if pop_parser {
+                        log::info!("popping parser");
+
+                        let current_parser = existing_parsers.iter().find(|item| item.sequence_number == current_sequence_number).unwrap();
+                        let parser_truncated = serde_json::to_string(&current_parser).expect("Could not convert parsers to json string");
                         let parser_truncated = &parser_truncated[..std::cmp::min(parser_truncated.len(), 100)];
 
-                        if parser.sequence_number == current_sequence_number {
-                            println!("*** id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
-                        } else {
-                            println!("id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
-                        }
+                        delete_parser(&connection, current_parser);
+
+                        println!("Removed id: {}, url: {}, sequence_number: {}, parser: {}", current_parser.id, current_parser.url, current_parser.sequence_number, parser_truncated);
                     }
 
-                } else if pop_parser {
-                    log::info!("popping parser");
-
-                    let current_parser = existing_parsers.iter().find(|item| item.sequence_number == current_sequence_number).unwrap();
-                    let parser_truncated = serde_json::to_string(&current_parser).expect("Could not convert parsers to json string");
-                    let parser_truncated = &parser_truncated[..std::cmp::min(parser_truncated.len(), 100)];
-
-                    delete_parser(&connection, current_parser);
-
-                    println!("Removed id: {}, url: {}, sequence_number: {}, parser: {}", current_parser.id, current_parser.url, current_parser.sequence_number, parser_truncated);
+                } else {
+                    println!("No parsers found for URL: {}", url);
                 }
 
+
+                return Ok(());
             } else {
-                println!("No parsers found for URL: {}", url);
-            }
-
-
-            return Ok(());
-        } else {
-            panic!("Listing parsing for non-URLs is not supported");
-        }
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-    //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
-    //
-    //     Obtaining output
-    //
-    //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
-
-    let output: parversion::Output = get_output(document, url, existing_parsers.clone(), regenerate)?;
-
-    //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
-    //
-    //     Saving parsers to database
-    //
-    //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
-
-    let parsers = serde_json::to_string(&output.parsers).expect("Could not convert parsers to json string");
-
-    if let Some(url) = url {
-        log::trace!("Url exists");
-
-        if existing_parsers.is_none() || regenerate {
-            log::info!("We will save parser to database");
-
-            let next_sequence_number = get_current_sequence_number(&connection, url).unwrap_or(0) + 1;
-            let next_sequence_number: &str = &next_sequence_number.to_string();
-            log::debug!("next_sequence_number: {}", next_sequence_number);
-            
-            if connection.execute(
-                "INSERT INTO parsers (url, parser, sequence_number) VALUES (?1, ?2, ?3)",
-                &[&url, &parsers.as_str(), &next_sequence_number],
-            ).is_ok() {
-                log::info!("Inserted parsers into db");
+                panic!("Listing parsing for non-URLs is not supported");
             }
         }
-    }
 
-    //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
-    //
-    //     Starting tooey session
-    //
-    //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
+        //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
+        //
+        //     Obtaining output
+        //
+        //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
 
-    let data = &output.data[0];
-    let data_json_string = serde_json::to_string(&data).expect("Could not convert data to json string");
+        let output: parversion::Output = get_output(document.clone(), url.clone(), existing_parsers.clone(), regenerate)?;
 
-    match tooey::json_to_terminal(data_json_string) {
-        Ok(session_result) => {
-            if let Some(session_result) = session_result {
-                println!("{:?}", session_result);
+        //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
+        //
+        //     Saving parsers to database
+        //
+        //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
+
+        let parsers = serde_json::to_string(&output.parsers).expect("Could not convert parsers to json string");
+
+        if let Some(url) = url.clone() {
+            log::trace!("Url exists");
+
+            if existing_parsers.is_none() || regenerate {
+                log::info!("We will save parser to database");
+
+                let next_sequence_number = get_current_sequence_number(&connection, &url).unwrap_or(0) + 1;
+                let next_sequence_number = next_sequence_number.to_string();
+                log::debug!("next_sequence_number: {}", next_sequence_number);
+                
+                if connection.execute(
+                    "INSERT INTO parsers (url, parser, sequence_number) VALUES (?1, ?2, ?3)",
+                    &[&url, &parsers, &next_sequence_number],
+                ).is_ok() {
+                    log::info!("Inserted parsers into db");
+                }
             }
         }
-        Err(error) => {
-            log::error!("{:?}", error);
-            panic!("Tooey was unable to render json");
+
+        //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
+        //
+        //     Starting tooey session
+        //
+        //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
+
+        let data = &output.data[0];
+        let data_json_string = serde_json::to_string(&data).expect("Could not convert data to json string");
+
+        match tooey::json_to_terminal(data_json_string) {
+            Ok(session_result) => {
+                if let Some(session_result) = session_result {
+                    println!("{:?}", session_result);
+
+                    let session_url = session_result.url.clone();
+                    log::debug!("session_url: {}", session_url);
+
+                    url = Some(session_url);
+                } else {
+                    break;
+                }
+            }
+            Err(error) => {
+                log::error!("{:?}", error);
+                panic!("Tooey was unable to render json");
+            }
         }
+
     }
 
     Ok(())
