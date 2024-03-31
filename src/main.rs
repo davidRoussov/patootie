@@ -184,7 +184,45 @@ fn handle_fallback(url: Option<&str>) {
     std::process::exit(0);
 }
 
-fn main() {
+fn get_output(document: String, url: Option<&str>, parsers: Option<Vec<Parser>>, regenerate: bool) -> Result<parversion::Output, String> {
+    if let Some(ref parsers) = parsers {
+        if regenerate {
+            log::info!("Regenerating new parsers using parversion...");
+            let result = parversion::string_to_json(document);
+            match result {
+                Ok(data) => Ok(data),
+                Err(parversion::Errors::UnableToCategoriseDocument) => {
+                    log::warn!("Parversion was unable to categorise document");
+                    handle_fallback(url);
+                    Err("Unable to categorise document".to_string())
+                }
+                _ => {
+                    Err("An error occurred while running parversion".to_string())
+                }
+            }
+        } else {
+            let current_parser: Parser = get_current_parser(parsers.to_vec());
+            log::info!("Generating output using database parsers...");
+            Ok(parversion::get_output(document, &current_parser.parsers).expect("Unable to parse document with existing parsers"))
+        }
+    } else {
+        log::info!("Generating new parsers using parversion...");
+        let result = parversion::string_to_json(document);
+        match result {
+            Ok(data) => Ok(data),
+            Err(parversion::Errors::UnableToCategoriseDocument) => {
+                log::warn!("Parversion was unable to categorise document");
+                handle_fallback(url);
+                Err("Unable to categorise document".to_string())
+            }
+            _ => {
+                Err("An error occurred while running parversion".to_string())
+            }
+        }
+    }
+}
+
+fn main() -> Result<(), String> {
     let _ = simple_logging::log_to_file("debug.log", LevelFilter::Trace);
 
     let mut document = String::new();
@@ -309,12 +347,22 @@ fn main() {
             }
 
 
-
-            return;
+            return Ok(());
         } else {
             panic!("Listing parsing for non-URLs is not supported");
         }
     }
+
+
+
+
+
+
+
+
+
+
+
 
     //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
     //
@@ -322,40 +370,7 @@ fn main() {
     //
     //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
 
-    let output: Option<parversion::Output> = if let Some(ref existing_parsers) = existing_parsers {
-        if regenerate {
-            log::info!("Regenerating new parsers using parversion...");
-            let result = parversion::string_to_json(document);
-            match result {
-                Ok(data) => Some(data),
-                Err(parversion::Errors::UnableToCategoriseDocument) => {
-                    log::warn!("Parversion was unable to categorise document");
-                    handle_fallback(url);
-                    None
-                }
-                _ => {
-                    panic!("An error occurred while running parversion");
-                }
-            }
-        } else {
-            let current_parser: Parser = get_current_parser(existing_parsers.to_vec());
-            log::info!("Generating output using database parsers...");
-            Some(parversion::get_output(document, &current_parser.parsers).expect("Unable to parse document with existing parsers"))
-        }
-    } else {
-        log::info!("Generating new parsers using parversion...");
-        let result = parversion::string_to_json(document);
-        match result {
-            Ok(data) => Some(data),
-            Err(parversion::Errors::UnableToCategoriseDocument) => {
-                handle_fallback(url);
-                None
-            }
-            _ => {
-                panic!("An error occurred while running parversion");
-            }
-        }
-    };
+    let output: parversion::Output = get_output(document, url, existing_parsers.clone(), regenerate)?;
 
     //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
     //
@@ -363,8 +378,6 @@ fn main() {
     //
     //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
 
-    let output = output.unwrap();
-    println!("output: {:?}", output);
     let parsers = serde_json::to_string(&output.parsers).expect("Could not convert parsers to json string");
 
     if let Some(url) = url {
@@ -406,4 +419,6 @@ fn main() {
             panic!("Tooey was unable to render json");
         }
     }
+
+    Ok(())
 }
