@@ -14,6 +14,8 @@ use webbrowser;
 use parversion;
 use tooey;
 
+pub mod utilities;
+
 #[derive(Clone, Serialize)]
 struct Parser {
     id: u16,
@@ -421,7 +423,22 @@ fn main() -> Result<(), String> {
                     let session_url = session_result.url.clone();
                     log::debug!("session_url: {}", session_url);
 
-                    url = Some(session_url);
+
+
+                    // TODO: this project not be the appropriate place for prefixing base url
+                    // to relative urls
+
+                    let is_relative = utilities::is_relative_url(&session_url);
+                    log::debug!("is_relative: {}", is_relative);
+
+                    if is_relative {
+                        let base_url = utilities::get_base_url(&url.unwrap()).expect("Could not get base url");
+                        url = Some(format!("{}{}", base_url, session_url));
+                    } else {
+                        url = Some(session_url);
+                    }
+
+
                 } else {
                     break;
                 }

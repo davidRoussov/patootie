@@ -975,6 +975,7 @@ dependencies = [
  "simple-logging",
  "tokio",
  "tooey",
+ "url",
  "webbrowser",
 ]
 
