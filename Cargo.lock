@@ -982,7 +982,7 @@ dependencies = [
 [[package]]
 name = "parversion"
 version = "0.1.0"
-source = "git+https://github.com/davidRoussov/parversion.git#12d4f10a20ce2e411e1da795b2d27b6c893a9f01"
+source = "git+https://github.com/davidRoussov/parversion.git#f7fa73c0f16c6c41c639f8c7fe1868611d219284"
 dependencies = [
  "atty",
  "clap",
