@@ -222,6 +222,50 @@ fn get_output(document: String, url: Option<String>, parsers: Option<Vec<Parser>
     }
 }
 
+fn handle_debug_options(connection: Connection, url: Option<String>, list_parsers: bool, pop_parser: bool) {
+    let existing_parsers: Option<Vec<Parser>> = get_database_parsers(&connection, url.clone());
+    log::info!("{}", if existing_parsers.is_some() { "Found parsers in database" } else { "Did not find any parsers in database" });
+
+    if let Some(url) = url.clone() {
+        if let Some(ref existing_parsers) = existing_parsers {
+
+            let current_sequence_number = get_current_sequence_number(&connection, &url).unwrap();
+            log::debug!("current_sequence_number: {}", current_sequence_number);
+
+            if list_parsers {
+                log::info!("listing parsers");
+
+                for parser in existing_parsers.iter() {
+                    let parser_truncated = serde_json::to_string(&parser.parsers).expect("Could not convert parsers to json string");
+                    let parser_truncated = &parser_truncated[..std::cmp::min(parser_truncated.len(), 100)];
+
+                    if parser.sequence_number == current_sequence_number {
+                        println!("*** id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
+                    } else {
+                        println!("id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
+                    }
+                }
+
+            } else if pop_parser {
+                log::info!("popping parser");
+
+                let current_parser = existing_parsers.iter().find(|item| item.sequence_number == current_sequence_number).unwrap();
+                let parser_truncated = serde_json::to_string(&current_parser).expect("Could not convert parsers to json string");
+                let parser_truncated = &parser_truncated[..std::cmp::min(parser_truncated.len(), 100)];
+
+                delete_parser(&connection, current_parser);
+
+                println!("Removed id: {}, url: {}, sequence_number: {}, parser: {}", current_parser.id, current_parser.url, current_parser.sequence_number, parser_truncated);
+            }
+
+        } else {
+            println!("No parsers found for URL: {}", url);
+        }
+    } else {
+        panic!("Listing parsing for non-URLs is not supported");
+    }
+}
+
 fn main() -> Result<(), String> {
     let _ = simple_logging::log_to_file("debug.log", LevelFilter::Trace);
 
@@ -280,8 +324,25 @@ fn main() -> Result<(), String> {
     let rt = Runtime::new().unwrap();
     let connection = setup_database().expect("Failed to setup database");
 
-    loop {
+    //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
+    //
+    //     Handling debug options
+    //
+    //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
 
+    if list_parsers || pop_parser {
+        log::debug!("list_parsers or pop_parser is true");
+        handle_debug_options(connection, url, list_parsers, pop_parser);
+        return Ok(());
+    }
+
+    //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
+    //
+    //     Main loop
+    //
+    //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
+
+    loop {
         rt.block_on(async {
             if let Some(some_url) = url.clone() {
                 log::info!("A url was has been provided");
@@ -298,63 +359,15 @@ fn main() -> Result<(), String> {
             panic!("Document not found");
         }
 
-
+        //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
+        //
+        //     Obtaining any existing parsers for document
+        //
+        //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
 
         log::info!("Searching for existing parsers in database before generating new one...");
         let existing_parsers: Option<Vec<Parser>> = get_database_parsers(&connection, url.clone());
         log::info!("{}", if existing_parsers.is_some() { "Found parsers in database" } else { "Did not find any parsers in database" });
-
-        //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
-        //
-        //     Listing or popping parsers for a URL
-        //
-        //<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=<=
-        
-        if list_parsers || pop_parser {
-            log::debug!("list_parsers or pop_parser is true");
-
-            if let Some(url) = url.clone() {
-                if let Some(ref existing_parsers) = existing_parsers {
-
-                    let current_sequence_number = get_current_sequence_number(&connection, &url).unwrap();
-                    log::debug!("current_sequence_number: {}", current_sequence_number);
-
-                    if list_parsers {
-                        log::info!("listing parsers");
-
-                        for parser in existing_parsers.iter() {
-                            let parser_truncated = serde_json::to_string(&parser.parsers).expect("Could not convert parsers to json string");
-                            let parser_truncated = &parser_truncated[..std::cmp::min(parser_truncated.len(), 100)];
-
-                            if parser.sequence_number == current_sequence_number {
-                                println!("*** id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
-                            } else {
-                                println!("id: {}, url: {}, sequence_number: {}, parser: {}", parser.id, parser.url, parser.sequence_number, parser_truncated);
-                            }
-                        }
-
-                    } else if pop_parser {
-                        log::info!("popping parser");
-
-                        let current_parser = existing_parsers.iter().find(|item| item.sequence_number == current_sequence_number).unwrap();
-                        let parser_truncated = serde_json::to_string(&current_parser).expect("Could not convert parsers to json string");
-                        let parser_truncated = &parser_truncated[..std::cmp::min(parser_truncated.len(), 100)];
-
-                        delete_parser(&connection, current_parser);
-
-                        println!("Removed id: {}, url: {}, sequence_number: {}, parser: {}", current_parser.id, current_parser.url, current_parser.sequence_number, parser_truncated);
-                    }
-
-                } else {
-                    println!("No parsers found for URL: {}", url);
-                }
-
-
-                return Ok(());
-            } else {
-                panic!("Listing parsing for non-URLs is not supported");
-            }
-        }
 
         //=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>=>
         //
@@ -418,7 +431,6 @@ fn main() -> Result<(), String> {
                 panic!("Tooey was unable to render json");
             }
         }
-
     }
 
     Ok(())
