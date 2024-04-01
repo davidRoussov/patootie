@@ -1,6 +1,8 @@
 extern crate simple_logging;
 extern crate log;
 
+use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::Client;
 use serde_json;
 use serde::{Serialize};
 use rusqlite::{Connection};
@@ -138,17 +140,27 @@ async fn fetch_document(url: &str) -> Result<String, &str> {
     log::trace!("In fetch_document");
     log::debug!("url: {}", url);
 
-    let client = reqwest::Client::new();
-    let response = client
-        .get(url)
-        .send()
-        .await;
+    let mut headers = HeaderMap::new();
+    headers.insert("accept", HeaderValue::from_static("*/*"));
+    headers.insert("accept-language", HeaderValue::from_static("en-GB,en-US;q=0.9,en;q=0.8"));
+    headers.insert("sec-ch-ua", HeaderValue::from_static(r#""Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120""#));
+    headers.insert("sec-ch-ua-mobile", HeaderValue::from_static("?0"));
+    headers.insert("sec-ch-ua-platform", HeaderValue::from_static(r#""macOS""#));
+    headers.insert("sec-fetch-dest", HeaderValue::from_static("empty"));
+    headers.insert("sec-fetch-mode", HeaderValue::from_static("cors"));
+    headers.insert("sec-fetch-site", HeaderValue::from_static("cross-site"));
+    headers.insert("user-agent", HeaderValue::from_static("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"));
 
-    match response {
+    let client = Client::builder()
+        .default_headers(headers)
+        .build()
+        .map_err(|_| "Client creation failed")?;
+
+    match client.get(url).send().await {
         Ok(success_response) => {
             log::info!("Successfully fetched document");
 
-            let text = success_response.text().await.unwrap();
+            let text = success_response.text().await.map_err(|_| "Failed to read document")?;
             Ok(text)
         }
         Err(err) => {
