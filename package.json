@@ -1,0 +1,31 @@
+{
+  "name": "patootie",
+  "version": "1.0.0",
+  "description": "Terminal Web Browser",
+  "author": "David Roussov",
+  "main": "./src/index.ts",
+  "scripts": {
+    "invoke": "./scripts/invoke.sh",
+    "debug": "./scripts/debug.sh",
+    "setup": "./scripts/setup.sh",
+    "check-types": "tsc --noEmit",
+    "watch-types": "tsc --noEmit --watch",
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "source-map-support": "^0.5.21",
+    "winston": "^3.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "20.12.12",
+    "esbuild": "^0.14.11",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^3.9.0",
+    "typescript": "5.4.5"
+  },
+  "engines": {
+    "npm": "please-use-yarn",
+    "yarn": ">= 1.17.3",
+    "node": ">= 18.17.0"
+  }
+}

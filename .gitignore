@@ -1,0 +1,14 @@
+# package directories
+node_modules
+
+# Debug
+debug/*
+!debug/.gitkeep
+
+# Lock file, prefer yarn
+package-lock.json
+
+.DS_Store
+
+# Build artifacts
+dist/

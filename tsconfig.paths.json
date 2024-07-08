@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@assertions/*": ["src/assertions/*"],
+      "@assertions": ["src/assertions"],
+      "@errors/*": ["src/errors/*"],
+      "@errors": ["src/errors"],
+      "@globals/*": ["src/globals/*"],
+      "@globals": ["src/globals"],
+      "@constants/*": ["src/constants/*"],
+      "@constants": ["src/constants"],
+      "@models/*": ["src/models/*"],
+      "@models": ["src/models"],
+      "@services/*": ["src/services/*"],
+      "@services": ["src/services"],
+      "@type-guards/*": ["src/type-guards/*"],
+      "@type-guards": ["src/type-guards"],
+      "@types/*": ["src/types/*"],
+      "@types": ["src/types"],
+      "@utilities/*": ["src/utilities/*"],
+      "@utilities": ["src/utilities"]
+    }
+  }
+}
