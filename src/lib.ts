@@ -27,6 +27,32 @@ const parverse = async (html: string): Promise<any> => {
   });
 };
 
+const render = async (input: string): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    const tooey = '/Users/david/projects/tooey';
+
+    let session = '';
+
+    const cargoProcess = spawn('cargo', ['run'], { cwd: tooey });
+
+    cargoProcess.stdin.write(input + '\n');
+    cargoProcess.stdin.end();
+
+    cargoProcess.stdout.on('data', (data) => {
+      session += data.toString();
+    });
+
+    cargoProcess.stderr.on('data', (error) => {
+      console.error('error', error.toString());
+    });
+
+    cargoProcess.on('close', (code) => {
+      console.log(`Tooey exited with code: ${code}`);
+      resolve(session);
+    });
+  });
+};
+
 export const go = async (url: string): Promise<void> => {
 
   const browser = await puppeteer.launch({
@@ -53,6 +79,10 @@ export const go = async (url: string): Promise<void> => {
 
   console.log(output);
 
+
+  const session = await render(output);
+
+  console.log(session);
 
 
 
