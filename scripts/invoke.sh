@@ -2,20 +2,11 @@
 set -e
 set -o pipefail
 
-ACTION="go"
+if [ -z "$1" ]; then
+  echo "Please provide URL"
+  exit 1
+fi
 
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    -i|--index)
-      INDEX=$2
-      shift
-      shift
-      ;;
-    *)
-      echo "Invalid option: $1"
-      exit 1
-      ;;
-  esac
-done
+URL=$1
 
-node build.js && node ./dist/index.js "$ACTION"
+node build.js && node ./dist/index.js "$URL"

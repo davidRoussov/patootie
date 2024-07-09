@@ -3,8 +3,7 @@ import 'source-map-support/register';
 
 (async () => {
   const args = process.argv.slice(2);
+  const url = args[0];
 
-  if (args[0] == 'go') {
-    await go();
-  }
+  await go(url);
 })();
