@@ -13,6 +13,7 @@
     "build": "node build.js"
   },
   "dependencies": {
+    "puppeteer": "^22.12.1",
     "source-map-support": "^0.5.21",
     "winston": "^3.8.2"
   },
