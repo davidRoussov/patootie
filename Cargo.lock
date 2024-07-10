@@ -2332,7 +2332,7 @@ dependencies = [
 [[package]]
 name = "tooey"
 version = "0.1.0"
-source = "git+https://github.com/davidRoussov/tooey.git#3471b82342c75ac49e218cc49601df3939e1d037"
+source = "git+https://github.com/davidRoussov/tooey.git#fb4868d695657dcf842ea8a98af43738cdd74009"
 dependencies = [
  "atty",
  "clap",

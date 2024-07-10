@@ -108,9 +108,7 @@ fn main() {
         Ok(output) => {
             println!("{:?}", output);
 
-            let json_string = serde_json::to_string(&output).expect("Could not convert data to json string");
-
-            match tooey::render(json_string) {
+            match tooey::render(output) {
                 Ok(session_result) => {
                     println!("{:?}", session_result);
                 }
