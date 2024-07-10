@@ -1298,24 +1298,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "partooty"
-version = "0.1.0"
-dependencies = [
- "atty",
- "clap",
- "env_logger",
- "fantoccini",
- "log",
- "parversion",
- "reqwest",
- "serde",
- "serde_json",
- "simple-logging",
- "tokio",
- "tooey",
-]
-
-[[package]]
 name = "parversion"
 version = "0.1.0"
 source = "git+https://github.com/davidRoussov/parversion.git#bcefb8fe228dc77dbb704bc4e21f02a673d4e238"
@@ -1364,6 +1346,24 @@ checksum = "ed9c672fd61cdb1257e09b5dffc20bb26721c6e7d60ed5af0fe38dc31a1c81a5"
 dependencies = [
  "once_cell",
  "url",
+]
+
+[[package]]
+name = "patootie"
+version = "0.1.0"
+dependencies = [
+ "atty",
+ "clap",
+ "env_logger",
+ "fantoccini",
+ "log",
+ "parversion",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "simple-logging",
+ "tokio",
+ "tooey",
 ]
 
 [[package]]
