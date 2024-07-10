@@ -1,14 +1,9 @@
-# package directories
-node_modules
+/target
+
+# Resources
+resources/*
+!resources/.gitkeep
 
 # Debug
 debug/*
 !debug/.gitkeep
-
-# Lock file, prefer yarn
-package-lock.json
-
-.DS_Store
-
-# Build artifacts
-dist/
