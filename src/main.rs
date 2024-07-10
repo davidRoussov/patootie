@@ -7,6 +7,7 @@ use std::io::{self};
 use atty::Stream;
 use clap::{Arg, App};
 use log::LevelFilter;
+use env_logger::Builder;
 use parversion;
 use tooey;
 
@@ -72,7 +73,7 @@ fn main() {
 
     if document.trim().is_empty() {
         log::info!("Document not provided, aborting...");
-        panic!("Document not found");
+        panic!("Document not provided");
     }
 
     let result = parversion::normalize(document);
