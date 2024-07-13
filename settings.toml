@@ -1,2 +1,3 @@
 [llm]
 target_node_adjacent_xml_length = 2000
+target_node_examples_max_count = 3
