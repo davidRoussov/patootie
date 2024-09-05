@@ -9,6 +9,7 @@ use atty::Stream;
 use clap::{Arg, App};
 use log::LevelFilter;
 use env_logger::Builder;
+use reqwest::Url;
 use parversion;
 use tooey;
 
@@ -36,6 +37,28 @@ fn init_logging() -> Builder {
     builder.init();
 
     builder
+}
+
+fn get_base_url(full_url: &str) -> Option<String> {
+    if let Ok(parsed_url) = Url::parse(full_url) {
+        let mut base_url = parsed_url.scheme().to_string();
+        base_url.push_str("://");
+
+        if let Some(host) = parsed_url.host_str() {
+            base_url.push_str(host);
+        } else {
+            return None;
+        }
+
+        if let Some(port) = parsed_url.port() {
+            base_url.push(':');
+            base_url.push_str(&port.to_string());
+        }
+
+        return Some(base_url);
+    }
+
+    None
 }
 
 async fn fetch_html(url: &str) -> Result<String, fantoccini::error::CmdError> {
@@ -66,6 +89,7 @@ async fn fetch_html(url: &str) -> Result<String, fantoccini::error::CmdError> {
 fn main() {
     let _ = init_logging();
 
+    let mut url: Option<String> = None;
     let mut document = String::new();
 
     match load_stdin() {
@@ -80,14 +104,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() == 2 {
-        let url = &args[1];
-
-        let rt = Runtime::new().unwrap();
-
-        rt.block_on(async {
-            document = fetch_html(url).await
-                .expect(&format!("Could not fetch HTML at URL: {}", url));
-            });
+        url = Some(args[1].clone());
     }
 
     let matches = App::new("patootie")
@@ -97,30 +114,54 @@ fn main() {
         .get_matches();
     println!("matches: {:?}", matches);
 
-    if document.trim().is_empty() {
-        log::info!("Document not provided, aborting...");
-        panic!("Document not provided");
-    }
+    loop {
+        if let Some(url) = url.clone() {
+            let rt = Runtime::new().unwrap();
 
-    let result = parversion::normalize(document);
+            rt.block_on(async {
+                document = fetch_html(&url).await
+                    .expect(&format!("Could not fetch HTML at URL: {}", url));
+                });
+        }
 
-    match result {
-        Ok(output) => {
-            println!("{:?}", output);
+        if document.trim().is_empty() {
+            log::info!("Document not provided, aborting...");
+            panic!("Document not provided");
+        }
 
-            match tooey::render(output) {
-                Ok(session_result) => {
-                    println!("{:?}", session_result);
-                }
-                Err(error) => {
-                    log::error!("{:?}", error);
-                    panic!("Tooey was unable to render json");
+        let result = parversion::normalize(document.clone());
+
+        match result {
+            Ok(output) => {
+                println!("{:?}", output);
+
+                match tooey::render(output) {
+                    Ok(session_result) => {
+                        println!("{:?}", session_result);
+
+                        if let Some(some_value) = session_result.value {
+                            if some_value.starts_with("http") {
+                                url = Some(some_value.clone());
+                            } else {
+                                if let Some(some_url) = url.clone() {
+                                    let base_url = get_base_url(&some_url).unwrap();
+                                    url = Some(format!("{}/{}", base_url, some_value));
+                                }
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    Err(error) => {
+                        log::error!("{:?}", error);
+                        panic!("Tooey was unable to render json");
+                    }
                 }
             }
-        }
-        Err(err) => {
-            log::error!("{:?}", err);
-            panic!("Parversion was unable to process document");
+            Err(err) => {
+                log::error!("{:?}", err);
+                panic!("Parversion was unable to process document");
+            }
         }
     }
 }
