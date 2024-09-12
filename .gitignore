@@ -10,3 +10,5 @@ debug/*
 
 src/database/hash_to_node_data/
 src/database/tree_metadata/
+
+basis_graph

@@ -4,13 +4,16 @@ extern crate log;
 use tokio::runtime::Runtime;
 use fantoccini::{ClientBuilder, Locator};
 use std::io::{Read};
-use std::io::{self};
+use std::io::{self, Write};
 use atty::Stream;
 use clap::{Arg, App};
 use log::LevelFilter;
 use env_logger::Builder;
 use reqwest::Url;
+use std::sync::{Arc, RwLock};
+use std::fs::File;
 use parversion;
+use parversion::{Graph, BasisNode};
 use tooey;
 
 fn load_stdin() -> io::Result<String> {
@@ -73,7 +76,7 @@ async fn fetch_html(url: &str) -> Result<String, fantoccini::error::CmdError> {
 
     let client = ClientBuilder::native()
         .capabilities(caps)
-        .connect("http://localhost:9515")
+        .connect("http://localhost:52120")
         .await
         .expect("Failed to connect to WebDriver");
 
@@ -84,6 +87,27 @@ async fn fetch_html(url: &str) -> Result<String, fantoccini::error::CmdError> {
     client.close().await?;
 
     Ok(html)
+}
+
+fn load_basis_graph() -> Option<Graph<BasisNode>> {
+    let mut file = match File::open("./basis_graph") {
+        Ok(file) => file,
+        Err(error) => return None,
+    };
+
+    let mut serialized = String::new();
+    file.read_to_string(&mut serialized).expect("Could not read to string");
+
+    let basis_graph = parversion::GraphNode::deserialize(&serialized).expect("Could not deserialize basis graph");
+
+    Some(basis_graph)
+}
+
+fn save_basis_graph(graph: Graph<BasisNode>) {
+    let rl = graph.read().unwrap();
+    let serialized = rl.serialize().expect("Could not serialize basis graph");
+    let mut file = File::create("./basis_graph").expect("Could not create file");
+    file.write_all(serialized.as_bytes()).expect("could not write to file");
 }
 
 fn main() {
@@ -114,6 +138,8 @@ fn main() {
         .get_matches();
     println!("matches: {:?}", matches);
 
+    let mut basis_graph: Option<Graph<BasisNode>> = load_basis_graph();
+
     loop {
         if let Some(url) = url.clone() {
             let rt = Runtime::new().unwrap();
@@ -129,38 +155,39 @@ fn main() {
             panic!("Document not provided");
         }
 
-        let result = parversion::normalize(document.clone());
+        let result = parversion::normalize_text(document.clone(), basis_graph.clone())
+            .expect("Parversion was unable to process document");
 
-        match result {
-            Ok(output) => {
-                println!("{:?}", output);
+        save_basis_graph(result.basis_graph.clone());
 
-                match tooey::render(output) {
-                    Ok(session_result) => {
-                        println!("{:?}", session_result);
+        basis_graph = Some(result.basis_graph.clone());
 
-                        if let Some(some_value) = session_result.value {
-                            if some_value.starts_with("http") {
-                                url = Some(some_value.clone());
-                            } else {
-                                if let Some(some_url) = url.clone() {
-                                    let base_url = get_base_url(&some_url).unwrap();
-                                    url = Some(format!("{}/{}", base_url, some_value));
-                                }
-                            }
-                        } else {
-                            break;
+
+
+        let serialized_harvest = parversion::serialize(result.harvest, parversion::HarvestFormats::JSON).expect("Could not serialize harvest");
+
+
+
+        match tooey::render(serialized_harvest) {
+            Ok(session_result) => {
+                println!("{:?}", session_result);
+
+                if let Some(some_value) = session_result.value {
+                    if some_value.starts_with("http") {
+                        url = Some(some_value.clone());
+                    } else {
+                        if let Some(some_url) = url.clone() {
+                            let base_url = get_base_url(&some_url).unwrap();
+                            url = Some(format!("{}/{}", base_url, some_value));
                         }
                     }
-                    Err(error) => {
-                        log::error!("{:?}", error);
-                        panic!("Tooey was unable to render json");
-                    }
+                } else {
+                    break;
                 }
             }
-            Err(err) => {
-                log::error!("{:?}", err);
-                panic!("Parversion was unable to process document");
+            Err(error) => {
+                log::error!("{:?}", error);
+                panic!("Tooey was unable to render json");
             }
         }
     }
