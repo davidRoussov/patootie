@@ -67,12 +67,20 @@ fn get_base_url(full_url: &str) -> Option<String> {
 async fn fetch_html(url: &str) -> Result<String, fantoccini::error::CmdError> {
     let mut caps: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
     caps.insert("browserName".to_string(), serde_json::Value::String("chrome".to_string()));
+
+    let user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36";
     caps.insert(
         "goog:chromeOptions".to_string(),
         serde_json::json!({
-            "args": ["--headless", "--disable-gpu", "--window-size=1920,1080"]
+            "args": [
+                "--headless",
+                "--disable-gpu",
+                "--window-size=1920,1080",
+                &format!("--user-agent={}", user_agent)
+            ]
         }),
     );
+    caps.insert("acceptInsecureCerts".to_string(), serde_json::Value::Bool(true));
 
     let client = ClientBuilder::native()
         .capabilities(caps)
