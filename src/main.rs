@@ -76,7 +76,7 @@ async fn fetch_html(url: &str) -> Result<String, fantoccini::error::CmdError> {
 
     let client = ClientBuilder::native()
         .capabilities(caps)
-        .connect("http://localhost:52120")
+        .connect("http://localhost:54109")
         .await
         .expect("Failed to connect to WebDriver");
 
