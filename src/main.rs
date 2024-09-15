@@ -148,6 +148,8 @@ fn main() {
 
     let mut basis_graph: Option<Graph<BasisNode>> = load_basis_graph();
 
+    let mut history: Vec<tooey::history::HistoryEntry> = Vec::new();
+
     loop {
         if let Some(url) = url.clone() {
             let rt = Runtime::new().unwrap();
@@ -176,11 +178,19 @@ fn main() {
 
 
 
-        match tooey::render(serialized_harvest) {
+        match tooey::render(serialized_harvest, Some(history.clone())) {
             Ok(session_result) => {
                 println!("{:?}", session_result);
 
                 if let Some(some_value) = session_result.value {
+                    if let Some(current_url) = url.clone() {
+                        let history_entry = tooey::history::HistoryEntry {
+                            url: current_url,
+                            title: "placeholder".to_string(),
+                        };
+                        history.push(history_entry);
+                    }
+
                     if some_value.starts_with("http") {
                         url = Some(some_value.clone());
                     } else {
