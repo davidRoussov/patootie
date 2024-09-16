@@ -228,9 +228,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.1.18"
+version = "1.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62ac837cdb5cb22e10a256099b4fc502b1dfe560cb282963a974d7abd80e476"
+checksum = "2d74707dde2ba56f86ae90effb3b43ddd369504387e718014de010cec7959800"
 dependencies = [
  "shlex",
 ]
@@ -1314,7 +1314,7 @@ dependencies = [
 [[package]]
 name = "parversion"
 version = "0.1.0"
-source = "git+https://github.com/davidRoussov/parversion.git#5af982ed678867191e3572bfe0794ad55650af43"
+source = "git+https://github.com/davidRoussov/parversion.git#de227c2a4ddb32ce948d7c415ca9d256f56e6732"
 dependencies = [
  "atty",
  "bincode",
