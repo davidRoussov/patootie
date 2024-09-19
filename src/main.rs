@@ -10,10 +10,9 @@ use clap::{Arg, App};
 use log::LevelFilter;
 use env_logger::Builder;
 use reqwest::Url;
-use std::sync::{Arc, RwLock};
 use std::fs::File;
 use parversion;
-use parversion::{Graph, BasisNode};
+use parversion::{BasisGraph};
 use tooey;
 
 fn load_stdin() -> io::Result<String> {
@@ -84,7 +83,7 @@ async fn fetch_html(url: &str) -> Result<String, fantoccini::error::CmdError> {
 
     let client = ClientBuilder::native()
         .capabilities(caps)
-        .connect("http://localhost:54109")
+        .connect("http://localhost:57183")
         .await
         .expect("Failed to connect to WebDriver");
 
@@ -97,23 +96,22 @@ async fn fetch_html(url: &str) -> Result<String, fantoccini::error::CmdError> {
     Ok(html)
 }
 
-fn load_basis_graph() -> Option<Graph<BasisNode>> {
+fn load_basis_graph() -> Option<BasisGraph> {
     let mut file = match File::open("./basis_graph") {
         Ok(file) => file,
-        Err(error) => return None,
+        Err(_error) => return None,
     };
 
     let mut serialized = String::new();
     file.read_to_string(&mut serialized).expect("Could not read to string");
 
-    let basis_graph = parversion::GraphNode::deserialize(&serialized).expect("Could not deserialize basis graph");
+    let basis_graph = serde_json::from_str::<BasisGraph>(&serialized).expect("Could not deserialize basis graph");
 
     Some(basis_graph)
 }
 
-fn save_basis_graph(graph: Graph<BasisNode>) {
-    let rl = graph.read().unwrap();
-    let serialized = rl.serialize().expect("Could not serialize basis graph");
+fn save_basis_graph(graph: BasisGraph) {
+    let serialized = serde_json::to_string(&graph).expect("Could not serialize basis graph");
     let mut file = File::create("./basis_graph").expect("Could not create file");
     file.write_all(serialized.as_bytes()).expect("could not write to file");
 }
@@ -146,7 +144,7 @@ fn main() {
         .get_matches();
     println!("matches: {:?}", matches);
 
-    let mut basis_graph: Option<Graph<BasisNode>> = load_basis_graph();
+    let mut basis_graph: Option<BasisGraph> = load_basis_graph();
 
     let mut history: Vec<tooey::history::HistoryEntry> = Vec::new();
 
